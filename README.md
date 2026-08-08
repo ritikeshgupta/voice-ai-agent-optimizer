@@ -108,8 +108,11 @@ In the sandbox: **Settings → Private Integrations → Create**. Grant these sc
 - `voice-ai-dashboard.readonly`
 - `voice-ai-agent-goals.readonly`, `voice-ai-agent-goals.write`
 
-A PIT is used instead of full OAuth2 — this is a single-tenant sandbox integration, so the
-OAuth app-review/install flow adds no value here (see Team-of-One notes below).
+All real API calls in this app (Agents, Actions, Call Logs) use this PIT, not OAuth2 — this is a
+single-tenant sandbox integration, so per-installer OAuth tokens add no value here. A minimal OAuth
+*client* is still required to satisfy HighLevel's Marketplace install handshake itself (see step 7
+and the Team-of-One notes below) — that's a platform requirement independent of how the app
+authenticates to the API afterward.
 
 ### 4. Configure environment variables
 
@@ -127,6 +130,8 @@ Fill in `.env`:
 | `LLM_PROVIDER` | `gemini` or `anthropic`. If unset, defaults to Gemini when `GEMINI_API_KEY` is set, else Anthropic |
 | `GEMINI_API_KEY` | aistudio.google.com — used when `LLM_PROVIDER=gemini` |
 | `ANTHROPIC_API_KEY` | console.anthropic.com — used when `LLM_PROVIDER=anthropic` |
+| `GHL_OAUTH_CLIENT_ID` / `GHL_OAUTH_CLIENT_SECRET` | Developer Portal → your app → Advanced Settings → Auth → Secrets → "+ Add" (step 7) |
+| `GHL_OAUTH_REDIRECT_URI` | `<your HTTPS URL>/oauth/callback` — must match exactly what you register in step 7 |
 
 Both providers implement the same `generateText`/`generateTurn`/`generateStructured` interface in
 `src/services/llm.ts`, so every module (`analyze`/`testgen`/`simulate`/`recommend`) is written
@@ -168,14 +173,31 @@ Open `http://localhost:5173`.
 ### 7. Install into the HighLevel sandbox as a Custom Page
 
 1. Expose the running app over HTTPS — for local iteration, `ngrok http 3000` (Custom Pages
-   require HTTPS and won't render in an iframe over plain HTTP). For the actual demo/submission,
-   deploy `npm run build && npm start` to a host with a stable URL (e.g. Render — the official
-   `ghl-marketplace-app-template` this project started from documents that path).
-2. In the Marketplace Developer Portal, create a (private/unlisted) app.
-3. Add a **Custom Page**: point it at your deployed URL, placement = left navigation, available
-   to the sandbox's distribution type.
-4. Install the app into the sandbox sub-account.
-5. Open the new nav item inside HighLevel — the dashboard renders in the iframe, hitting the same
+   require HTTPS and won't render in an iframe over plain HTTP). For a longer-lived setup, deploy
+   `npm run build && npm start` to a host with a stable URL instead, and use that URL everywhere
+   below.
+2. In the [Marketplace Developer Portal](https://marketplace.gohighlevel.com), create an app
+   (**My apps → Create app**). Fill in **Basic Info** (name, logo, category, tagline) and set
+   **Distribution type** to **Private** — private apps skip GHL's manual review queue and go
+   **Live** immediately on submit, which is what you want for a sandbox-only integration.
+3. **App Profiles**: add an app description and at least one preview image (16:9, e.g. 960×540) —
+   both are required before the app version can publish, even for a private app.
+4. **Modules → Custom Page**: point it at `<your HTTPS URL>`, placement = left navigation.
+5. **Advanced Settings → Auth**: add a Redirect URL of `<your HTTPS URL>/oauth/callback`, select at
+   least one scope, then go to **Secrets** and click **+ Add** to generate a Client ID/Secret. Put
+   all three values in `.env` as `GHL_OAUTH_CLIENT_ID` / `GHL_OAUTH_CLIENT_SECRET` /
+   `GHL_OAUTH_REDIRECT_URI`, then restart the server so `/oauth/callback` (in `src/index.ts`) picks
+   them up. This step exists purely to satisfy the Marketplace install handshake — see the
+   Team-of-One note below for why it's required even though every real API call in this app uses
+   the PIT, not this OAuth token.
+6. **Manage → Versions → Submit for review**: fill the minimal required fields (this triggers a
+   confirmation checklist, not GHL's actual review team, since the app is Private) — the version
+   moves straight to **Live**.
+7. Go back to **Basic Info → Install link → Show**, copy the **Standard** link, and open it in a
+   browser logged into the target sandbox account. Click **Install**, then **Proceed to Install**
+   (a "you're installing a private app" warning is expected and fine — it's your own app).
+8. Refresh the sandbox. A new left-nav item appears (named after whatever you titled the Custom
+   Page module) — click it. The dashboard renders inside HighLevel's iframe, hitting the same
    `/api/*` routes as local dev.
 
 ### Production build
@@ -191,9 +213,23 @@ This was built end-to-end by one person covering product, design, engineering, a
 judgment calls worth being explicit about, since that's what "ownership" actually looks like
 rather than a claim:
 
-- **PIT over OAuth2**: full marketplace-app OAuth (client id/secret, install flow, token refresh)
-  adds real engineering surface with no product value for a single sandbox integration. Chose the
-  simpler, equally-legitimate auth path and spent the saved time on the actual three loops instead.
+- **PIT for all real API calls, OAuth client only to satisfy the install handshake**: every
+  Agents/Actions/Call-Logs request in this app authenticates with a PIT — building full
+  per-installer OAuth (token refresh, per-location tokens) would've added real engineering surface
+  with no product value for a single sandbox integration. What wasn't obvious going in: HighLevel's
+  Marketplace install flow (`chooselocation`) still requires an app to have a registered OAuth
+  client (redirect URI, at least one scope, a generated Client ID/Secret) before it'll resolve the
+  app's identity and let anyone install it — even a Custom-Page-only app that never uses that
+  token. Confirmed this the hard way: the install link failed with `user_not_logged_in` and an
+  empty `appId` in HighLevel's own network requests regardless of login state, across a fresh
+  incognito session too, until Auth was actually configured — at which point the same request
+  started resolving correctly. Added a minimal `/oauth/callback` route that exchanges the code and
+  discards the resulting token; it exists solely to complete that handshake.
+- **Distribution type Private, not Public**: HighLevel's own "how versioning works" panel states
+  private apps skip the manual review queue and go Live immediately on submit, while public apps
+  queue for actual GHL staff review (and require a demo video up front, before you have one to
+  give). Private is the correct choice for a sandbox-only submission for exactly that reason, not
+  just as a shortcut.
 - **`node:sqlite` over `better-sqlite3`**: hit a real native-build failure partway through (Xcode
   CLT/node-gyp on this machine) and treated it as a signal, not just a local workaround — a
   reviewer hitting the same class of failure on `npm install` would never get past setup.
@@ -266,6 +302,14 @@ rather than a claim:
   from thin evidence, per the system prompt's own instruction ("return fewer recommendations
   rather than inventing ones"). Left as-is rather than forced -- that caution is the behavior the
   prompt asked for, not a bug to route around.
+- **Dismissed recommendations were still showing in the UI, uncovered while checking the
+  dashboard before recording a demo**: `recommend` had been re-run a few times during development,
+  and superseded duplicates were marked `status = 'dismissed'` in the DB but the list query never
+  filtered on status, so both the Recommendations tab and the Overview stat tile counted and
+  displayed them alongside current ones. Fixed by excluding `dismissed` in
+  `listRecommendationsForAgent`'s query (`src/db/recommendations.ts`) -- a one-line fix, but the
+  kind of thing that only surfaces by actually looking at the running product, not just reading
+  the code.
 
 ## What's functional vs. what's mocked
 
