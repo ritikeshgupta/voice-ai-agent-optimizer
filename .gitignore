@@ -1,0 +1,17 @@
+node_modules/
+dist/
+*.log
+.env
+.env.local
+data/*.sqlite
+data/*.sqlite-journal
+data/*.sqlite-shm
+data/*.sqlite-wal
+src/ui/dist/
+src/ui/node_modules/
+.DS_Store
+.claude/
+\[Hiring\] FSB Assignment Q326.pdf
+scripts/*.tmp.ts
+
+*.tsbuildinfo

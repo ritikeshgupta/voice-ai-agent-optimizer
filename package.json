@@ -1,0 +1,39 @@
+{
+  "name": "voice-ai-agent-optimizer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent Optimizer for HighLevel Voice AI agents: analyzes past call transcripts, generates test cases, and recommends configuration changes.",
+  "main": "dist/index.js",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "dev:ui": "npm run dev --workspace=src/ui",
+    "build:server": "tsc -p tsconfig.json && cp src/db/schema.sql dist/db/schema.sql",
+    "build:ui": "npm run build --workspace=src/ui",
+    "build": "npm run build:server && npm run build:ui && mkdir -p dist/ui && cp -r src/ui/dist dist/ui/dist",
+    "start": "node dist/index.js",
+    "seed": "tsx scripts/seed.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.scripts.json"
+  },
+  "workspaces": [
+    "src/ui"
+  ],
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.65.0",
+    "@google/genai": "^2.16.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "zod": "^3.24.1",
+    "zod-to-json-schema": "^3.25.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.10"
+  }
+}
