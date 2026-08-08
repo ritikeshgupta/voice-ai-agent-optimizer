@@ -1,6 +1,6 @@
 // Shapes returned by HighLevel's Voice AI API, trimmed to the fields this app uses.
-// Verified against .claude/skills/voice-ai-optimizer/reference/voice-ai-openapi.json --
-// notably there is no `model` or `temperature` field anywhere in the real schema.
+// Verified against HighLevel's public Voice AI OpenAPI spec -- notably there is no
+// `model` or `temperature` field anywhere in the real schema.
 
 export interface GHLAgentAction {
   id: string;

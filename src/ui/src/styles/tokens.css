@@ -1,6 +1,6 @@
-/* Design tokens -- see .claude/skills for the source palette. Light values in :root,
-   dark overrides under prefers-color-scheme (this page runs in a GHL iframe with no
-   theme toggle of its own, so OS preference is the only signal available). */
+/* Design tokens. Light values in :root, dark overrides under prefers-color-scheme
+   (this page runs in a GHL iframe with no theme toggle of its own, so OS preference
+   is the only signal available). */
 :root {
   color-scheme: light;
 

@@ -28,7 +28,7 @@ HighLevel Sandbox Account
                                               |
                                      Backend (Express + TypeScript)
                                        - ghlClient    (Agents / Actions / Call Logs API)
-                                       - llm          (Anthropic Claude or Gemini, switchable
+                                       - llm          (Anthropic or Gemini, switchable
                                                         via LLM_PROVIDER, provider-agnostic
                                                         structured output)
                                        - analyze/      issue detection
@@ -41,8 +41,8 @@ HighLevel Sandbox Account
                                        Overview | Call Logs & Issues | Test Cases | Recommendations
 ```
 
-Full API contract details (exact request/response schemas, verified against HighLevel's public
-OpenAPI spec, not the rendered docs) live in `.claude/skills/voice-ai-optimizer/`.
+Full API contract details (exact request/response schemas) were verified directly against
+HighLevel's public Voice AI OpenAPI spec, not just the rendered docs.
 
 ## Repo structure
 
@@ -51,7 +51,7 @@ src/
   db/                SQLite schema + typed repositories, one file per entity
   services/
     ghlClient.ts      HighLevel Voice AI API wrapper (PIT auth)
-    llm.ts             LLM wrapper -- Anthropic Claude or Gemini (LLM_PROVIDER), same
+    llm.ts             LLM wrapper -- Anthropic or Gemini (LLM_PROVIDER), same
                           provider-agnostic interface (text / multi-turn / structured output)
   modules/
     analyze/            transcript parsing + issue classification
@@ -199,7 +199,7 @@ rather than a claim:
   reviewer hitting the same class of failure on `npm install` would never get past setup.
   Switched engines rather than debugging one machine's toolchain.
 - **Forced tool-use over `output_config`/`messages.parse()`** for structured Anthropic output: the
-  published `@anthropic-ai/sdk` doesn't yet expose that surface. Forced tool-use (a zod schema →
+  published `@anthropic-ai/sdk` version in use doesn't yet expose that surface. Forced tool-use (a zod schema →
   JSON Schema → single forced tool call → parsed back through the same zod schema) is the
   version-stable equivalent. Gemini gets the same zod-schema-in, typed-result-out contract via its
   native `responseJsonSchema` mode — every module authors its expected output as one plain zod
@@ -271,9 +271,9 @@ rather than a claim:
 
 **Real, no stubs:**
 - PIT auth against a live HighLevel sandbox; every Agents/Actions/Call-Logs API call is a real
-  HTTP request against the documented contract (`.claude/skills/voice-ai-optimizer/reference/voice-ai-openapi.json`)
+  HTTP request against HighLevel's documented Voice AI API contract
 - LLM-driven issue detection, test-case generation, simulated-conversation execution, judge
-  scoring, and recommendation synthesis (Gemini or Claude, per `LLM_PROVIDER`) — every one of
+  scoring, and recommendation synthesis (Gemini or Anthropic, per `LLM_PROVIDER`) — every one of
   those is an actual model call with a real schema, not a canned response
 - The "Apply" action for prompt/guardrails recommendations really calls `PATCH /voice-ai/agents/:id`
   against the sandbox and re-fetches to confirm

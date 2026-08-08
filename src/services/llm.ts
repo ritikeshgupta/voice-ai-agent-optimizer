@@ -46,20 +46,24 @@ function getAnthropic(): Anthropic {
 }
 
 function getAnthropicModel(): string {
-  return process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
+  const model = process.env.ANTHROPIC_MODEL;
+  if (!model) {
+    throw new Error("Missing required env var ANTHROPIC_MODEL -- see .env.example");
+  }
+  return model;
 }
 
 function firstTextBlock(content: Anthropic.ContentBlock[]): string {
   const block = content.find((b): b is Anthropic.TextBlock => b.type === "text");
   if (!block) {
-    throw new Error("Claude response contained no text content block");
+    throw new Error("Anthropic response contained no text content block");
   }
   return block.text;
 }
 
 function assertNoRefusal(stopReason: Anthropic.StopReason | null): void {
   if (stopReason === "refusal") {
-    throw new Error("Claude declined to generate a response for this prompt");
+    throw new Error("Anthropic declined to generate a response for this prompt");
   }
 }
 
@@ -368,7 +372,7 @@ export async function generateStructured<T>(opts: {
 
   const toolUse = response.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
   if (!toolUse) {
-    throw new Error("Claude did not return the expected structured tool call");
+    throw new Error("Anthropic did not return the expected structured tool call");
   }
   return opts.schema.parse(toolUse.input);
 }
