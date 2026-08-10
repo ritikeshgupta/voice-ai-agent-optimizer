@@ -185,8 +185,10 @@ Open `http://localhost:5173`.
    deploy). Use that URL everywhere below instead of the ngrok one.
 
    Render's free tier has no persistent disk, so the SQLite file can reset on redeploy or after a
-   cold start from inactivity — see the Team-of-One note below on why this app auto-reseeds itself
-   rather than requiring a paid disk or a database migration.
+   cold start from inactivity. Rather than a paid disk or a database migration, this app self-heals
+   by replaying a static, pre-generated snapshot (`src/db/seed-data.sql`, committed to the repo) if
+   it boots with no cached agents — see the Team-of-One note below for why that's a static file and
+   not a live re-seed.
 2. In the [Marketplace Developer Portal](https://marketplace.gohighlevel.com), create an app
    (**My apps → Create app**). Fill in **Basic Info** (name, logo, category, tagline) and set
    **Distribution type** to **Private** — private apps skip GHL's manual review queue and go
@@ -313,19 +315,28 @@ rather than a claim:
   from thin evidence, per the system prompt's own instruction ("return fewer recommendations
   rather than inventing ones"). Left as-is rather than forced -- that caution is the behavior the
   prompt asked for, not a bug to route around.
-- **Auto-reseed-on-boot instead of a database migration, once a real deploy target came up**: a
-  laptop + ngrok URL isn't something a reviewer can rely on being reachable whenever they check
-  it, so the app needed a host that stays up independent of any one machine. Render fits (long-
-  running Node process, matches this app's architecture with zero code changes) but its free tier
-  has no persistent disk, so the SQLite file can reset on redeploy or after an inactivity-based
-  cold start. Considered migrating to a hosted Postgres (Supabase) for real cross-restart
-  persistence, but `node:sqlite`'s synchronous API means every one of the ~25 functions across
-  `src/db/*.ts` and ~50 call sites across `routes/`/`modules/` would need converting to async —
-  a real refactor with real regression risk, not a quick swap, for a problem that has a much
-  smaller fix: extracted the seed pipeline into `src/modules/seed/` and added a boot-time check
-  (`src/index.ts`) that re-runs it automatically if the DB comes up with no cached agents. Costs
-  nothing, touches no existing call sites, and the dashboard self-heals within about a minute of
-  any reset rather than needing a manual re-seed.
+- **Boot-time self-heal, once a real deploy target came up -- and a live re-seed turned out to be
+  the wrong version of that fix**: a laptop + ngrok URL isn't something a reviewer can rely on
+  being reachable whenever they check it, so the app needed a host that stays up independent of
+  any one machine. Render fits (long-running Node process, matches this app's architecture with
+  zero code changes) but its free tier has no persistent disk, so the SQLite file can reset on
+  redeploy or after an inactivity-based cold start. Considered migrating to a hosted Postgres
+  (Supabase) for real cross-restart persistence, but `node:sqlite`'s synchronous API means every
+  one of the ~25 functions across `src/db/*.ts` and ~50 call sites across `routes/`/`modules/`
+  would need converting to async -- a real refactor with real regression risk, not a quick swap.
+  First fix was a boot-time check that re-ran the live seed pipeline (real GHL sync + LLM-generated
+  synthetic backfill) whenever the DB came up empty. That worked, but it's the wrong shape for a
+  demo: every cold start became a ~30-60s wait behind live LLM calls, with results that could vary
+  run to run and were exposed to whatever rate limit the LLM provider was under at that exact
+  moment -- the opposite of what you want mid-recording or mid-review. Replaced it with a static,
+  pre-generated snapshot (`src/db/seed-data.sql`, plain INSERT statements, committed to the repo
+  and copied into `dist/` at build time) that boot-time loads via `db.exec()` if no agents are
+  cached -- zero API calls, deterministic, and fast enough that the dashboard is fully populated
+  before the first request finishes. `npm run seed` (live) still exists for actually refreshing
+  the underlying data; `npm run seed:snapshot` re-dumps whatever's in the local DB into that file
+  afterward. The demo's real-call beat (see `DEMO.md`) deliberately layers a fresh, real trial call
+  on top of this frozen baseline instead of relying on it for everything, so the live analyze →
+  recommend loop still gets demonstrated against genuinely new evidence, not just replayed data.
 - **First Render deploy crashed on boot with `ERR_UNKNOWN_BUILTIN_MODULE: No such built-in module:
   node:sqlite`**, on Node 22.11.0 — surfaced by an actual failed deploy, not caught locally, since
   local dev runs Node 24. `node:sqlite` landed in 22.5 but stayed behind an `--experimental-sqlite`
