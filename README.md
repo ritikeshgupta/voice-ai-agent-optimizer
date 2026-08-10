@@ -89,13 +89,14 @@ to get a realistic starting prompt.
 
 ### 2. Populate a Knowledge Base
 
-In the sandbox: **AI Agents → Knowledge Base → Create knowledge base**, and add a handful of
-short FAQ entries for the agent's business (hours, services, pricing, escalation/transfer policy,
-cancellation policy — 2-4 sentences each). **Don't attach it to the agent's actions.** The point
-isn't "give the agent a knowledge base" — it's to create a real, populated KB that the agent has
-no way to reach, so the Optimizer has something concrete to find and recommend fixing. This is
-what makes the `knowledge_base` recommendation category land on a specific, verifiable gap
-("the answer exists, the agent just can't reach it") instead of generic advice.
+In the sandbox: **AI Agents → Knowledge Base → Create knowledge base**, and add the FAQ entries
+from [`KNOWLEDGE_BASE.md`](./KNOWLEDGE_BASE.md) verbatim (7 entries: hours, pricing, escalation
+policy, cancellation policy, services offered, support channels, data handling). **Don't attach
+the KB to the agent's actions.** The point isn't "give the agent a knowledge base" — it's to
+create a real, populated KB that the agent has no way to reach, so the Optimizer has something
+concrete to find and recommend fixing. This is what makes the `knowledge_base` recommendation
+category land on a specific, verifiable gap ("the answer exists, the agent just can't reach it")
+instead of generic advice.
 
 `scripts/seed.ts`'s `SCENARIO_OVERRIDES` hardcodes two synthetic transcripts against this specific
 setup — one caller asking about hours/pricing, one invoking the escalation policy by name. If you
