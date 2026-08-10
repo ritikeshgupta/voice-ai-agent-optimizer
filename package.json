@@ -5,7 +5,7 @@
   "description": "Agent Optimizer for HighLevel Voice AI agents: analyzes past call transcripts, generates test cases, and recommends configuration changes.",
   "main": "dist/index.js",
   "engines": {
-    "node": ">=22.5.0"
+    "node": ">=24.0.0"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",

@@ -68,9 +68,11 @@ scripts/
 
 ### Prerequisites
 
-- Node.js **>= 22.5** (this project uses the built-in `node:sqlite` module instead of a
+- Node.js **>= 24** (this project uses the built-in `node:sqlite` module instead of a
   native-compiled dependency, specifically to avoid the "npm install fails on the reviewer's
-  machine" class of problem — no `node-gyp`/Xcode toolchain needed)
+  machine" class of problem — no `node-gyp`/Xcode toolchain needed. Note: `node:sqlite` landed in
+  22.5 but stayed behind an `--experimental-sqlite` flag until later — it's unflagged by 24, which
+  is what this app actually requires)
 - A HighLevel [Marketplace Developer account](https://marketplace.gohighlevel.com) with a
   **sandbox** sub-account (Developer Portal → Testing → "+ Create App Test Account")
 - An LLM API key — either a [Gemini API key](https://aistudio.google.com/) (free tier, the
@@ -324,6 +326,14 @@ rather than a claim:
   (`src/index.ts`) that re-runs it automatically if the DB comes up with no cached agents. Costs
   nothing, touches no existing call sites, and the dashboard self-heals within about a minute of
   any reset rather than needing a manual re-seed.
+- **First Render deploy crashed on boot with `ERR_UNKNOWN_BUILTIN_MODULE: No such built-in module:
+  node:sqlite`**, on Node 22.11.0 — surfaced by an actual failed deploy, not caught locally, since
+  local dev runs Node 24. `node:sqlite` landed in 22.5 but stayed behind an `--experimental-sqlite`
+  flag until a later release; the README/`package.json` `engines` field had been claiming `>=22.5`
+  the whole time, which was simply wrong for unflagged use. Fixed by bumping the real minimum to
+  Node 24 in `package.json`, `render.yaml`, and the README instead of adding the flag, since the
+  point of `node:sqlite` here was avoiding exactly this kind of "works on my machine" version
+  gotcha for whoever runs this next.
 - **Dismissed recommendations were still showing in the UI, uncovered while checking the
   dashboard before recording a demo**: `recommend` had been re-run a few times during development,
   and superseded duplicates were marked `status = 'dismissed'` in the DB but the list query never
