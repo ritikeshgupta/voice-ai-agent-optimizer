@@ -173,9 +173,18 @@ Open `http://localhost:5173`.
 ### 7. Install into the HighLevel sandbox as a Custom Page
 
 1. Expose the running app over HTTPS — for local iteration, `ngrok http 3000` (Custom Pages
-   require HTTPS and won't render in an iframe over plain HTTP). For a longer-lived setup, deploy
-   `npm run build && npm start` to a host with a stable URL instead, and use that URL everywhere
-   below.
+   require HTTPS and won't render in an iframe over plain HTTP). For a stable URL that doesn't
+   depend on your laptop staying on, deploy instead: this repo includes a `render.yaml` blueprint
+   — on [Render](https://dashboard.render.com), **New → Blueprint**, point it at this repo, and it
+   auto-configures the build (`npm install && npm run build`) and start (`npm start`) commands.
+   Fill in the prompted secrets (`GHL_PIT`, `GHL_LOCATION_ID`, `GEMINI_API_KEY` or
+   `ANTHROPIC_API_KEY`, and the `GHL_OAUTH_*` vars from step 5 below — you'll need Render's
+   assigned `*.onrender.com` URL to fill in `GHL_OAUTH_REDIRECT_URI`, so do step 5 after the first
+   deploy). Use that URL everywhere below instead of the ngrok one.
+
+   Render's free tier has no persistent disk, so the SQLite file can reset on redeploy or after a
+   cold start from inactivity — see the Team-of-One note below on why this app auto-reseeds itself
+   rather than requiring a paid disk or a database migration.
 2. In the [Marketplace Developer Portal](https://marketplace.gohighlevel.com), create an app
    (**My apps → Create app**). Fill in **Basic Info** (name, logo, category, tagline) and set
    **Distribution type** to **Private** — private apps skip GHL's manual review queue and go
@@ -184,12 +193,12 @@ Open `http://localhost:5173`.
    both are required before the app version can publish, even for a private app.
 4. **Modules → Custom Page**: point it at `<your HTTPS URL>`, placement = left navigation.
 5. **Advanced Settings → Auth**: add a Redirect URL of `<your HTTPS URL>/oauth/callback`, select at
-   least one scope, then go to **Secrets** and click **+ Add** to generate a Client ID/Secret. Put
-   all three values in `.env` as `GHL_OAUTH_CLIENT_ID` / `GHL_OAUTH_CLIENT_SECRET` /
-   `GHL_OAUTH_REDIRECT_URI`, then restart the server so `/oauth/callback` (in `src/index.ts`) picks
-   them up. This step exists purely to satisfy the Marketplace install handshake — see the
-   Team-of-One note below for why it's required even though every real API call in this app uses
-   the PIT, not this OAuth token.
+   least one scope, then go to **Secrets** and click **+ Add** to generate a Client ID/Secret. Set
+   `GHL_OAUTH_CLIENT_ID` / `GHL_OAUTH_CLIENT_SECRET` / `GHL_OAUTH_REDIRECT_URI` to those three
+   values (`.env` locally, or Render's dashboard env vars if deployed there), then restart/redeploy
+   so `/oauth/callback` (in `src/index.ts`) picks them up. This step exists purely to satisfy the
+   Marketplace install handshake — see the Team-of-One note below for why it's required even
+   though every real API call in this app uses the PIT, not this OAuth token.
 6. **Manage → Versions → Submit for review**: fill the minimal required fields (this triggers a
    confirmation checklist, not GHL's actual review team, since the app is Private) — the version
    moves straight to **Live**.
@@ -302,6 +311,19 @@ rather than a claim:
   from thin evidence, per the system prompt's own instruction ("return fewer recommendations
   rather than inventing ones"). Left as-is rather than forced -- that caution is the behavior the
   prompt asked for, not a bug to route around.
+- **Auto-reseed-on-boot instead of a database migration, once a real deploy target came up**: a
+  laptop + ngrok URL isn't something a reviewer can rely on being reachable whenever they check
+  it, so the app needed a host that stays up independent of any one machine. Render fits (long-
+  running Node process, matches this app's architecture with zero code changes) but its free tier
+  has no persistent disk, so the SQLite file can reset on redeploy or after an inactivity-based
+  cold start. Considered migrating to a hosted Postgres (Supabase) for real cross-restart
+  persistence, but `node:sqlite`'s synchronous API means every one of the ~25 functions across
+  `src/db/*.ts` and ~50 call sites across `routes/`/`modules/` would need converting to async —
+  a real refactor with real regression risk, not a quick swap, for a problem that has a much
+  smaller fix: extracted the seed pipeline into `src/modules/seed/` and added a boot-time check
+  (`src/index.ts`) that re-runs it automatically if the DB comes up with no cached agents. Costs
+  nothing, touches no existing call sites, and the dashboard self-heals within about a minute of
+  any reset rather than needing a manual re-seed.
 - **Dismissed recommendations were still showing in the UI, uncovered while checking the
   dashboard before recording a demo**: `recommend` had been re-run a few times during development,
   and superseded duplicates were marked `status = 'dismissed'` in the DB but the list query never

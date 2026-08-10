@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: voice-ai-agent-optimizer
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 22.11.0
+      - key: DATABASE_PATH
+        value: ./data/optimizer.sqlite
+      - key: GHL_API_DOMAIN
+        value: https://services.leadconnectorhq.com
+      - key: GHL_API_VERSION
+        value: v3
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: GEMINI_MODEL
+        value: gemini-flash-lite-latest
+      - key: GHL_PIT
+        sync: false
+      - key: GHL_LOCATION_ID
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        sync: false
+      - key: GHL_OAUTH_CLIENT_ID
+        sync: false
+      - key: GHL_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GHL_OAUTH_REDIRECT_URI
+        sync: false
