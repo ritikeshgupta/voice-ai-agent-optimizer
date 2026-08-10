@@ -7,6 +7,33 @@ import express, { type NextFunction, type Request, type Response } from "express
 import "./db"; // applies schema.sql on first import
 import { apiRouter } from "./routes";
 import { QuotaExhaustedError } from "./services/llm";
+import { listStoredAgents } from "./db/agents";
+import { runSeed } from "./modules/seed";
+
+/**
+ * Hosts without a persistent disk (e.g. Render's free tier) can lose the SQLite file on any
+ * cold start. Rather than require a paid disk or a Postgres migration for what's still an MVP
+ * (see README's Team-of-One notes), self-heal: if the DB comes up with no cached agents, re-run
+ * the ingestion side of `npm run seed` (real agent/call sync + synthetic backfill) automatically.
+ * Runs after the server starts listening so a cold start doesn't delay the health check; the
+ * dashboard may show empty tabs for the ~30-60s this takes before its first refresh.
+ */
+async function autoReseedIfEmpty(): Promise<void> {
+  if (listStoredAgents().length > 0) return;
+  console.log("[autoseed] No agents cached -- DB looks freshly reset. Re-seeding...");
+  try {
+    const result = await runSeed({ log: (msg) => console.log(`[autoseed] ${msg}`) });
+    if (result.skipped) {
+      console.log(`[autoseed] ${result.skipped}`);
+      return;
+    }
+    console.log(
+      `[autoseed] Done -- synced ${result.agentsSynced} agent(s), inserted ${result.syntheticInserted} synthetic call log(s).`
+    );
+  } catch (err) {
+    console.error("[autoseed] Failed -- dashboard will stay empty until a manual seed/sync.", err);
+  }
+}
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
@@ -71,4 +98,5 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 const port = Number(process.env.PORT) || 3000;
 app.listen(port, () => {
   console.log(`Voice AI Agent Optimizer listening on port ${port}`);
+  void autoReseedIfEmpty();
 });
