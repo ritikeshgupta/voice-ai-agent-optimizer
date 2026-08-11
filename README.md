@@ -227,177 +227,100 @@ This was built end-to-end by one person covering product, design, engineering, a
 judgment calls worth being explicit about, since that's what "ownership" actually looks like
 rather than a claim:
 
-- **PIT for all real API calls, OAuth client only to satisfy the install handshake**: every
-  Agents/Actions/Call-Logs request in this app authenticates with a PIT — building full
-  per-installer OAuth (token refresh, per-location tokens) would've added real engineering surface
-  with no product value for a single sandbox integration. What wasn't obvious going in: HighLevel's
-  Marketplace install flow (`chooselocation`) still requires an app to have a registered OAuth
-  client (redirect URI, at least one scope, a generated Client ID/Secret) before it'll resolve the
-  app's identity and let anyone install it — even a Custom-Page-only app that never uses that
-  token. Confirmed this the hard way: the install link failed with `user_not_logged_in` and an
-  empty `appId` in HighLevel's own network requests regardless of login state, across a fresh
-  incognito session too, until Auth was actually configured — at which point the same request
-  started resolving correctly. Added a minimal `/oauth/callback` route that exchanges the code and
-  discards the resulting token; it exists solely to complete that handshake.
-- **Distribution type Private, not Public**: HighLevel's own "how versioning works" panel states
-  private apps skip the manual review queue and go Live immediately on submit, while public apps
-  queue for actual GHL staff review (and require a demo video up front, before you have one to
-  give). Private is the correct choice for a sandbox-only submission for exactly that reason, not
-  just as a shortcut.
-- **`node:sqlite` over `better-sqlite3`**: hit a real native-build failure partway through (Xcode
-  CLT/node-gyp on this machine) and treated it as a signal, not just a local workaround — a
-  reviewer hitting the same class of failure on `npm install` would never get past setup.
-  Switched engines rather than debugging one machine's toolchain.
-- **Forced tool-use over `output_config`/`messages.parse()`** for structured Anthropic output: the
-  published `@anthropic-ai/sdk` version in use doesn't yet expose that surface. Forced tool-use (a zod schema →
-  JSON Schema → single forced tool call → parsed back through the same zod schema) is the
-  version-stable equivalent. Gemini gets the same zod-schema-in, typed-result-out contract via its
-  native `responseJsonSchema` mode — every module authors its expected output as one plain zod
-  schema regardless of which provider is active.
-- **Added a Gemini path + quota-exhaustion detection mid-build, not from the start**: hit real
-  Anthropic rate-limit/billing exhaustion while testing against the live sandbox. Rather than just
-  retrying blindly, added `anthropicQuota.ts` (reads rate-limit response headers, fails fast on
-  subsequent calls once exhausted instead of burning retries) and a Gemini provider behind the
-  same interface, so the demo isn't blocked on one vendor's quota.
-- **Synthetic backfill generates one transcript per issue category, deterministically, not "N
-  mixed transcripts" left to the model's judgment**: an earlier version asked for a mixed batch
-  and trusted the LLM to cover all six categories; nothing guaranteed it would, and an uneven
-  batch starves testgen/recommend of evidence for whichever category got skipped. Generating each
-  category's flawed transcript as its own explicit call removes that risk entirely.
-- **Apply is scoped to prompt/guardrails only, not actions/knowledge_base**: the API contract for
-  those is real and documented, but wiring a general "apply" path across seven different
-  `actionParameters` shapes was cut to keep the demonstrated path (recommend → apply → verify via
-  `getAgent`) actually solid rather than spreading thin across every category. Recommendations
-  still get generated for those categories, just flagged advisory-only. This is the single biggest
-  intentional scope cut — see "what's mocked" below.
-- **Hybrid test execution (simulated + real-call), decided explicitly rather than defaulted**: an
-  all-simulated system risks never touching HighLevel's actual voice pipeline; an all-real system
-  can't produce enough regression coverage fast enough. The judge-scoring code path is shared
-  between both modes specifically so the choice doesn't fork the codebase.
-- **Analyze initially missed "missed opportunities," and it showed up as a real, observable gap,
-  not a hypothetical one**: a seeded transcript where the agent correctly deferred a business-hours
-  question (per its own prompt -- no knowledge-base action exists to answer it) produced zero
-  issues on the first real run. Not a bug -- `policy_violation`'s original definition ("unsupported
-  claim / incorrect info") genuinely didn't apply, since the agent broke no rule. But the assignment
-  itself names three outcomes to detect -- "succeeded, **failed**, or **missed opportunities**" --
-  and the analyze prompt only asked for failures. Fixed by broadening `policy_violation` and
-  `objection_handling`'s taxonomy descriptions to explicitly cover "did what it was told, but the
-  prompt itself is the gap," and by naming missed-opportunity detection directly in the analyze
-  system prompt instead of leaving it implicit. Confirmed by re-running: the same transcript now
-  correctly produces a `policy_violation` finding, and `recommend` now surfaces a `knowledge_base`
-  recommendation grounded in it -- previously that category never fired at all, on any evidence.
-- **`recommend` originally saw only issue counts per category, not the actual evidence**: e.g.
-  `"policy_violation: 2 issues across 2 calls"` with no explanations or quotes. That's enough to
-  produce *generic* advice but not a recommendation grounded in what a caller actually said. Fixed
-  by feeding `recommend` a capped sample (3) of real explanations + verbatim quotes per category,
-  not just the count -- this is what makes recommendations cite specific evidence instead of
-  paraphrasing a category label.
-- **`testgen` generated success criteria that didn't correspond to anything the test's own persona
-  attempts, or to a capability the agent even has** -- a "happy path" test case failed on
-  `must_follow_booking_flow` even though that persona never mentioned an appointment and this
-  agent has no booking action at all. Not a judge or executor bug; they scored the (irrelevant)
-  criterion correctly. Fixed by adding an explicit coherence rule to `testgen`'s system prompt:
-  every criterion must be something that specific persona actually attempts, and a criterion type
-  should only be used at all if the agent's configured prompt/actions plausibly support it.
-  Re-running after the fix produced zero booking/transfer criteria for this agent -- correctly,
-  since it has neither capability.
-- **Gemini's free-tier RPM limit (15 req/min) was being treated the same as real quota/billing
-  exhaustion**, hard-stopping the whole process on the first 429. A single simulated test case can
-  burn ~15-17 LLM calls (multi-turn caller + agent + judge), so this reliably killed runs partway
-  through. The fix distinguishes the two: Gemini's 429 response includes a structured
-  `RetryInfo.retryDelay` telling you exactly how long the throttle lasts -- that's parsed out and
-  treated as "wait and retry," reserving the hard-stop for a 429 with no such hint (real
-  exhaustion). Confirmed by re-running the full 8-test-case batch clean afterward.
-- **`recommend` consistently declined to surface an `actions`/`guardrails` recommendation** for a
-  real, well-evidenced issue (a caller invoking a stated escalation policy to be transferred,
-  ignored) across several runs, while `policy_violation` (5 occurrences) always got a
-  recommendation. Checked directly that the evidence (issue + verbatim quote) was actually present
-  and being passed in, so this wasn't a data gap -- it was the model treating occurrence count as
-  a gate on whether a category got addressed at all, not just a priority signal, so a single real
-  issue never cleared the bar next to a category with five. Initially left as-is (that reads as
-  legitimate caution against inventing evidence, not a bug), but revisited once it was clear the
-  assignment explicitly expects tool/action and guardrail/escalation recommendations to actually
-  show up, not just be theoretically supported by the schema. Fixed by rewording the system
-  prompt to separate two different judgments that had been collapsed into one: whether a category
-  has *any* real supporting evidence (the actual bar -- zero evidence still means zero
-  recommendation) versus how *much* evidence it has (a priority/severity signal, not a threshold).
-  Also named the specific pattern explicitly: a caller invoking an escalation policy the agent
-  can't honor is both a missing rule (`guardrails`: when to transfer) and a missing capability
-  (`actions`: the transfer tool to configure) -- two distinct fixes for one root cause, not
-  duplicates. Re-running now reliably produces all six categories from the same underlying issue
-  history, each still citing its own specific evidence.
-- **`model` recommendations were generic ("upgrade to a higher reasoning tier") instead of
-  actionable**: the LLM has no inherent knowledge of which models HighLevel's Voice AI agent
-  builder actually lets you pick, so it could only gesture at "better" without naming one. Fixed by
-  web-researching HighLevel's real model dropdown (confirmed via their own support docs: GPT-4.1
-  and GPT-5 series, Gemini 2.5 Flash / Flash Lite, and Claude Sonnet 4.5 / Sonnet 4.0 / Haiku 3.5)
-  and published comparisons of tone/empathy quality across those options, then feeding that as
-  grounding context in the system prompt -- not injected evidence about this agent, just factual
-  information about the solution space, the same category of context a human optimizer would
-  already know. The agent's actual recurring issues (robotic phrasing, rigid error templates,
-  aggressive/threatening language) line up specifically with a tone/empathy failure mode, not a
-  context-window or raw-reasoning one, so the prompt now steers toward naming Claude Sonnet 4.5 for
-  that specific pattern (with its real cost trade-off stated, not hidden) rather than a vague tier
-  bump -- and explicitly toward a cheaper Gemini Flash tier instead if the evidence were a
-  latency/cost problem, or no model swap at all if neither pattern is actually present.
-- **Boot-time self-heal, once a real deploy target came up -- and a live re-seed turned out to be
-  the wrong version of that fix**: a laptop + ngrok URL isn't something a reviewer can rely on
-  being reachable whenever they check it, so the app needed a host that stays up independent of
-  any one machine. Render fits (long-running Node process, matches this app's architecture with
-  zero code changes) but its free tier has no persistent disk, so the SQLite file can reset on
-  redeploy or after an inactivity-based cold start. Considered migrating to a hosted Postgres
-  (Supabase) for real cross-restart persistence, but `node:sqlite`'s synchronous API means every
-  one of the ~25 functions across `src/db/*.ts` and ~50 call sites across `routes/`/`modules/`
-  would need converting to async -- a real refactor with real regression risk, not a quick swap.
-  First fix was a boot-time check that re-ran the live seed pipeline (real GHL sync + LLM-generated
-  synthetic backfill) whenever the DB came up empty. That worked, but it's the wrong shape for a
-  demo: every cold start became a ~30-60s wait behind live LLM calls, with results that could vary
-  run to run and were exposed to whatever rate limit the LLM provider was under at that exact
-  moment -- the opposite of what you want mid-recording or mid-review. Replaced it with a static,
-  pre-generated snapshot (`src/db/seed-data.sql`, plain INSERT statements, committed to the repo
-  and copied into `dist/` at build time) that boot-time loads via `db.exec()` if no agents are
-  cached -- zero API calls, deterministic, and fast enough that the dashboard is fully populated
-  before the first request finishes. `npm run seed` (live) still exists for actually refreshing
-  the underlying data; `npm run seed:snapshot` re-dumps whatever's in the local DB into that file
-  afterward. The demo's real-call beat (see `DEMO.md`) deliberately layers a fresh, real trial call
-  on top of this frozen baseline instead of relying on it for everything, so the live analyze →
-  recommend loop still gets demonstrated against genuinely new evidence, not just replayed data.
-- **First Render deploy crashed on boot with `ERR_UNKNOWN_BUILTIN_MODULE: No such built-in module:
-  node:sqlite`**, on Node 22.11.0 — surfaced by an actual failed deploy, not caught locally, since
-  local dev runs Node 24. `node:sqlite` landed in 22.5 but stayed behind an `--experimental-sqlite`
-  flag until a later release; the README/`package.json` `engines` field had been claiming `>=22.5`
-  the whole time, which was simply wrong for unflagged use. Fixed by bumping the real minimum to
-  Node 24 in `package.json`, `render.yaml`, and the README instead of adding the flag, since the
-  point of `node:sqlite` here was avoiding exactly this kind of "works on my machine" version
-  gotcha for whoever runs this next.
-- **Dismissed recommendations were still showing in the UI, uncovered while checking the
-  dashboard before recording a demo**: `recommend` had been re-run a few times during development,
-  and superseded duplicates were marked `status = 'dismissed'` in the DB but the list query never
-  filtered on status, so both the Recommendations tab and the Overview stat tile counted and
-  displayed them alongside current ones. Fixed by excluding `dismissed` in
-  `listRecommendationsForAgent`'s query (`src/db/recommendations.ts`) -- a one-line fix, but the
-  kind of thing that only surfaces by actually looking at the running product, not just reading
-  the code.
-- **`npm run build`'s UI copy step was silently serving stale frontend builds locally**: the
-  script ran `cp -r src/ui/dist dist/ui/dist`, which only overwrites correctly on the *first*
-  build -- once `dist/ui/dist` already exists as a directory, `cp -r` nests the source *into* it
-  (`dist/ui/dist/dist/...`) instead of replacing its contents, so every rebuild after the first
-  kept serving the previous build. Never affected Render (its builds always start from a fresh
-  clone with no prior `dist/`), but it meant several rounds of local UI verification during this
-  session were checking stale output without any error to signal it -- caught by comparing a
-  screenshot against the actual code change and noticing nothing had visibly changed. Fixed by
-  clearing the destination first (`rm -rf dist/ui && mkdir -p dist/ui && cp -r ...`).
-- **Test Cases tab had no at-a-glance status signal and reused status colors for test *type*, not
-  test *outcome***: the "edge case" badge used the "warning" (orange) status tone even when that
-  case passed, which reads as a mixed signal right next to a green "PASSED." Separated the two:
-  scenario-type and source-category badges are now neutral (identity, not status), while a
-  colored left border on each card and a new toolbar "`X/Y passing`" summary carry the actual
-  pass/fail signal. Also surfaced two things the data already had but the UI didn't show: which
-  recurring issue category motivated each test case (`sourceCategories`, resolved server-side from
-  `sourceIssueIds`), and a compact run-history dot strip from the full `runs` array (previously
-  only `runs[0]` was ever rendered) -- which immediately revealed two test cases that have never
-  once passed despite 3-4 attempts each, a real signal that was already in the database and just
-  wasn't visible anywhere.
+- **PIT for all real API calls; an OAuth client exists only to satisfy the install handshake.**
+  Full per-installer OAuth would add engineering surface with no product value for a single
+  sandbox integration. What wasn't obvious: HighLevel's Marketplace install flow still requires a
+  registered OAuth client (redirect URI, scope, Client ID/Secret) to resolve the app's identity
+  before anyone can install it — confirmed by watching the install link fail with
+  `user_not_logged_in` and an empty `appId` until Auth was actually configured. Added a minimal
+  `/oauth/callback` that exchanges and discards the code solely to complete that handshake.
+- **Distribution type Private, not Public.** HighLevel's own versioning docs confirm private apps
+  skip the manual review queue and go Live immediately, while public apps queue for real review
+  (and need a demo video before one exists) — the correct choice for a sandbox submission, not a
+  shortcut.
+- **`node:sqlite` over `better-sqlite3`**, after hitting a real native-build failure (Xcode
+  CLT/node-gyp) locally — treated as a signal that a reviewer's `npm install` could hit the same
+  wall, not a one-machine problem to route around.
+- **Forced tool-use instead of `output_config`/`messages.parse()`** for structured Anthropic
+  output, since the installed `@anthropic-ai/sdk` version doesn't expose that surface. Gemini gets
+  the same zod-in/typed-out contract via `responseJsonSchema`, so every module authors one schema
+  regardless of provider.
+- **Added a Gemini provider + quota-exhaustion detection mid-build**, after hitting real Anthropic
+  rate-limit/billing exhaustion against the live sandbox, so the demo isn't hostage to one
+  vendor's quota.
+- **Synthetic backfill generates one transcript per issue category as its own explicit call**, not
+  "N mixed transcripts" left to the model — an earlier mixed-batch version had no guarantee of
+  covering all six categories, which would starve testgen/recommend of evidence for whichever got
+  skipped.
+- **Apply only has a real handler for `prompt`/`guardrails`, not `actions`/`knowledge_base`.** The
+  API contract for those exists, but wiring a general apply path across seven different
+  `actionParameters` shapes was cut to keep the one demonstrated path (recommend → apply → verify)
+  solid rather than spread thin. Those categories still generate, just flagged advisory-only — the
+  single biggest intentional scope cut.
+- **Test execution is hybrid (simulated + real-call) by explicit choice, not default.**
+  All-simulated never touches HighLevel's actual voice pipeline; all-real can't produce enough
+  coverage fast enough. Both modes share one judge-scoring path so the choice doesn't fork the
+  codebase.
+- **Analyze initially scored zero issues on a transcript where the agent correctly deferred a
+  business-hours question it had no KB access to answer.** Not a bug — `policy_violation`'s
+  original definition ("unsupported claim") genuinely didn't apply. But the assignment names three
+  outcomes to detect, including missed opportunities, and analyze only looked for failures. Fixed
+  by broadening the taxonomy and naming missed-opportunity detection directly in the system prompt;
+  the same transcript now correctly produces a finding, and `recommend` surfaces a `knowledge_base`
+  recommendation from it that never fired before.
+- **`recommend` originally saw only issue counts per category** ("policy_violation: 2 issues"),
+  enough for generic advice but not evidence-grounded recommendations. Fixed by feeding it a capped
+  sample of real explanations + verbatim quotes per category, so recommendations cite what a
+  caller actually said instead of paraphrasing a label.
+- **`testgen` generated criteria that didn't match anything the test's own persona attempts** — a
+  happy-path case failed `must_follow_booking_flow` even though neither the persona nor the
+  agent's actions involved booking. Fixed with a coherence rule: a criterion must be something the
+  persona actually attempts, and a type should only be used if the agent's actions plausibly
+  support it.
+- **Gemini's free-tier RPM limit was being treated the same as real quota exhaustion**,
+  hard-stopping mid-batch on the first 429 (one simulated test case alone burns ~15-17 LLM calls).
+  Fixed by parsing Gemini's `RetryInfo.retryDelay` to distinguish "wait and retry" from genuine
+  exhaustion, which has no such hint.
+- **`recommend` was treating issue-occurrence count as a gate on whether a category got
+  recommended at all**, not just a priority signal — a single well-evidenced issue never beat a
+  category with five occurrences, so `actions`/`guardrails` almost never fired despite real
+  evidence. Fixed by separating "has any evidence" (the actual gate) from "how much" (priority
+  only), and naming explicitly that an unhonored escalation policy is both a missing rule
+  (`guardrails`) and a missing capability (`actions`).
+- **`model` recommendations were generic** ("upgrade to a higher tier") since the LLM has no
+  built-in knowledge of HighLevel's actual model dropdown. Fixed by web-researching the real
+  options (GPT-4.1/5, Gemini Flash tiers, Claude Sonnet 4.5/4.0/Haiku 3.5) and published
+  tone/empathy comparisons, then feeding that as solution-space context. This agent's issues match
+  a tone/empathy failure specifically, so it now names Claude Sonnet 4.5 with its real cost
+  trade-off against a cheaper Gemini Flash tier, instead of a vague tier bump.
+- **Needed a host that stays up independent of any one laptop.** Render fits with zero code
+  changes, but its free tier has no persistent disk, so the SQLite file resets on redeploy/cold
+  start. Considered a Postgres migration for real persistence, but `node:sqlite`'s synchronous API
+  would mean converting ~25 functions and ~50 call sites to async — too much regression risk for
+  the actual problem. First fix re-ran the live seed pipeline on boot when empty, but that meant a
+  30-60s wait behind live LLM calls with variable results on every cold start — wrong shape for a
+  demo. Replaced it with a static, pre-generated snapshot (`seed-data.sql`) that loads instantly
+  with zero API calls; the demo's real-call beat layers fresh evidence on top of that frozen
+  baseline instead of relying on it for everything.
+- **First Render deploy crashed on boot** (`ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite`) on Node
+  22.11 — `node:sqlite` landed in 22.5 behind an `--experimental-sqlite` flag and only became
+  unflagged later, so the README's `>=22.5` claim was simply wrong; local dev on Node 24 had masked
+  it. Fixed by bumping the real minimum to Node 24 everywhere instead of adding the flag.
+- **Dismissed recommendations were still showing in the UI and the Overview count** —
+  `recommend`'s re-runs during development left superseded duplicates marked dismissed, but the
+  list query never filtered on status. One-line fix, found only by looking at the running
+  dashboard, not by reading the code.
+- **`npm run build`'s UI copy step (`cp -r src/ui/dist dist/ui/dist`) only overwrites correctly on
+  the first build** — once the destination exists, `cp -r` nests the source into it instead of
+  replacing it, so local rebuilds after the first silently served stale UI. Never affected Render
+  (fresh clone every build), but caused a few rounds of confusing local verification. Fixed by
+  clearing the destination first.
+- **Test Cases badges reused the "warning" status color for test *type* (edge case), not
+  outcome** — a passing edge case showed an orange badge next to a green "PASSED," a mixed signal.
+  Separated identity (neutral badges: type, source category) from status (colored border, pass/
+  fail, a new "`X/Y passing`" summary), and added a run-history dot strip from data that was
+  already fetched but never rendered beyond the latest run — which immediately revealed two test
+  cases that have never once passed.
 
 ## What's functional vs. what's mocked
 
