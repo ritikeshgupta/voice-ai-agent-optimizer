@@ -34,6 +34,18 @@ describe the proposed change clearly in plain language. Note: HighLevel's public
 no "model" or "temperature" field today, so those two categories are inherently advisory --
 recommend them anyway when justified, but don't claim they can be applied automatically.
 
+For "model" specifically, name a real, currently-selectable model in HighLevel's Voice AI model
+dropdown, not a vague tier ("upgrade to a better model" is not actionable). As of this writing the
+dropdown includes GPT-4.1 and GPT-5 series (OpenAI), Gemini 2.5 Flash / Flash Lite (Google), and
+Claude Sonnet 4.5 / Sonnet 4.0 / Haiku 3.5 (Anthropic). Match the model's known strength to the
+*specific* evidence: recurring tone/empathy failures (robotic phrasing, rigid error templates,
+aggressive or threatening language) point toward Claude Sonnet 4.5, which benchmarks strongest on
+tone and natural, on-brand phrasing among these options; recurring failures that are really about
+raw latency or cost at high call volume point toward a Gemini Flash tier instead; don't recommend
+a model swap at all if the evidence doesn't actually match either pattern. Always name the
+concrete trade-off (e.g. Claude Sonnet costs meaningfully more per token than Gemini Flash) rather
+than presenting a swap as strictly better with no downside.
+
 Judge each category on its own evidence, not on relative occurrence counts. A category with one
 well-evidenced, clearly-actionable issue deserves its own recommendation just as much as a
 category with five -- occurrence count is a signal for priority/severity within the list, not a

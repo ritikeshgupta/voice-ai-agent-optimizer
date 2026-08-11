@@ -326,6 +326,20 @@ rather than a claim:
   (`actions`: the transfer tool to configure) -- two distinct fixes for one root cause, not
   duplicates. Re-running now reliably produces all six categories from the same underlying issue
   history, each still citing its own specific evidence.
+- **`model` recommendations were generic ("upgrade to a higher reasoning tier") instead of
+  actionable**: the LLM has no inherent knowledge of which models HighLevel's Voice AI agent
+  builder actually lets you pick, so it could only gesture at "better" without naming one. Fixed by
+  web-researching HighLevel's real model dropdown (confirmed via their own support docs: GPT-4.1
+  and GPT-5 series, Gemini 2.5 Flash / Flash Lite, and Claude Sonnet 4.5 / Sonnet 4.0 / Haiku 3.5)
+  and published comparisons of tone/empathy quality across those options, then feeding that as
+  grounding context in the system prompt -- not injected evidence about this agent, just factual
+  information about the solution space, the same category of context a human optimizer would
+  already know. The agent's actual recurring issues (robotic phrasing, rigid error templates,
+  aggressive/threatening language) line up specifically with a tone/empathy failure mode, not a
+  context-window or raw-reasoning one, so the prompt now steers toward naming Claude Sonnet 4.5 for
+  that specific pattern (with its real cost trade-off stated, not hidden) rather than a vague tier
+  bump -- and explicitly toward a cheaper Gemini Flash tier instead if the evidence were a
+  latency/cost problem, or no model swap at all if neither pattern is actually present.
 - **Boot-time self-heal, once a real deploy target came up -- and a live re-seed turned out to be
   the wrong version of that fix**: a laptop + ngrok URL isn't something a reviewer can rely on
   being reachable whenever they check it, so the app needed a host that stays up independent of
