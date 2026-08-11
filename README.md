@@ -6,6 +6,8 @@ integrates directly into the HighLevel UI as a Custom Page against a real sandbo
 
 Built for the HighLevel FSB Q3'26 hiring assignment (`[Hiring] FSB Assignment Q326.pdf`).
 
+**Demo:** [Loom walkthrough](https://www.loom.com/share/4042d76349764cee8df57cc5b496c800)
+
 ## The three loops
 
 1. **Analyze Past Performance** — ingests real Voice AI call transcripts via the Call Logs API,
