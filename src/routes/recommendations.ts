@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { asyncHandler } from "./asyncHandler";
 import { applyRecommendation, generateRecommendations } from "../modules/recommend";
-import { listRecommendationsForAgent } from "../db/recommendations";
+import { listRecommendationsForAgent, setRecommendationStatus } from "../db/recommendations";
 
 /** Mounted at /api/agents/:agentId/recommendations */
 export const recommendationsRouter = Router({ mergeParams: true });
@@ -29,5 +29,13 @@ recommendationActionsRouter.post(
   asyncHandler(async (req, res) => {
     await applyRecommendation(req.params.id);
     res.json({ status: "applied" });
+  })
+);
+
+recommendationActionsRouter.post(
+  "/:id/dismiss",
+  asyncHandler(async (req, res) => {
+    setRecommendationStatus(req.params.id, "dismissed");
+    res.json({ status: "dismissed" });
   })
 );

@@ -9,6 +9,7 @@ const props = defineProps<{ agentId: string }>();
 const recommendations = ref<RecommendationRecord[]>([]);
 const generating = ref(false);
 const applyingId = ref<string | null>(null);
+const dismissingId = ref<string | null>(null);
 const error = ref("");
 
 async function load() {
@@ -38,6 +39,19 @@ async function apply(rec: RecommendationRecord) {
     error.value = e instanceof Error ? e.message : String(e);
   } finally {
     applyingId.value = null;
+  }
+}
+
+async function dismiss(rec: RecommendationRecord) {
+  dismissingId.value = rec.id;
+  error.value = "";
+  try {
+    await api.dismissRecommendation(rec.id);
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    dismissingId.value = null;
   }
 }
 
@@ -100,6 +114,13 @@ const CATEGORY_LABELS: Record<RecommendationCategory, string> = {
         <span v-else-if="!rec.appliesViaApi" class="muted">
           HighLevel's public API has no lever for this category -- advisory only.
         </span>
+        <button
+          v-if="rec.status === 'suggested'"
+          :disabled="dismissingId === rec.id"
+          @click="dismiss(rec)"
+        >
+          {{ dismissingId === rec.id ? "Dismissing..." : "Dismiss" }}
+        </button>
       </div>
     </div>
   </div>

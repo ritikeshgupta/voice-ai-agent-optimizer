@@ -46,4 +46,5 @@ export const api = {
   generateRecommendations: (agentId: string) =>
     post<{ generated: number }>(`/agents/${agentId}/recommendations/generate`),
   applyRecommendation: (id: string) => post<{ status: string }>(`/recommendations/${id}/apply`),
+  dismissRecommendation: (id: string) => post<{ status: string }>(`/recommendations/${id}/dismiss`),
 };
