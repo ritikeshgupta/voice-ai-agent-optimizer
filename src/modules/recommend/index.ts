@@ -37,14 +37,19 @@ recommend them anyway when justified, but don't claim they can be applied automa
 For "model" specifically, name a real, currently-selectable model in HighLevel's Voice AI model
 dropdown, not a vague tier ("upgrade to a better model" is not actionable). As of this writing the
 dropdown includes GPT-4.1 and GPT-5 series (OpenAI), Gemini 2.5 Flash / Flash Lite (Google), and
-Claude Sonnet 4.5 / Sonnet 4.0 / Haiku 3.5 (Anthropic). Match the model's known strength to the
-*specific* evidence: recurring tone/empathy failures (robotic phrasing, rigid error templates,
+Claude Sonnet 4.5 / Sonnet 4.0 / Haiku 3.5 (Anthropic). Pick ONE primary recommendation matched to
+the *specific* evidence: recurring tone/empathy failures (robotic phrasing, rigid error templates,
 aggressive or threatening language) point toward Claude Sonnet 4.5, which benchmarks strongest on
 tone and natural, on-brand phrasing among these options; recurring failures that are really about
 raw latency or cost at high call volume point toward a Gemini Flash tier instead; don't recommend
-a model swap at all if the evidence doesn't actually match either pattern. Always name the
-concrete trade-off (e.g. Claude Sonnet costs meaningfully more per token than Gemini Flash) rather
-than presenting a swap as strictly better with no downside.
+a model swap at all if the evidence doesn't actually match either pattern.
+
+Don't stop at the primary pick, though -- afterValue must also name the trade-off alternative
+along the *other* axis, briefly: if you recommended Claude Sonnet 4.5 for tone, say what the
+cheaper Gemini Flash alternative would cost per token and be explicit that it likely won't fully
+fix the tone issue, since it optimizes for speed over nuance -- so the business owner can weigh
+"fix this properly" against "cheapest option that still runs." Never present either option as
+strictly better with no downside; the point is showing the real trade-off, not a single verdict.
 
 Judge each category on its own evidence, not on relative occurrence counts. A category with one
 well-evidenced, clearly-actionable issue deserves its own recommendation just as much as a
