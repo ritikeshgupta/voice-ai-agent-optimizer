@@ -81,6 +81,7 @@ export interface TestCaseRecord {
   personaPrompt: string;
   successCriteria: SuccessCriterion[];
   sourceIssueIds: number[];
+  sourceCategories: string[];
   createdAt: string;
   runs: TestRunRecord[];
 }

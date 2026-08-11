@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { api } from "../api/client";
 import type { SuccessCriterion, TestCaseRecord } from "../api/types";
 import Badge from "../components/Badge.vue";
@@ -11,6 +11,18 @@ const generating = ref(false);
 const runningId = ref<string | null>(null);
 const realCallDraftId = ref<string | null>(null);
 const realCallTranscript = ref("");
+
+const runCases = computed(() => testCases.value.filter((tc) => tc.runs.length > 0));
+const passingCases = computed(() => runCases.value.filter((tc) => tc.runs[0].passed));
+
+function statusTone(tc: TestCaseRecord): "good" | "critical" | "neutral" {
+  if (!tc.runs[0]) return "neutral";
+  return tc.runs[0].passed ? "good" : "critical";
+}
+
+function formatCategory(category: string): string {
+  return category.replace(/_/g, " ");
+}
 
 async function load() {
   testCases.value = await api.listTestCases(props.agentId);
@@ -78,16 +90,27 @@ function describeCriterion(c: SuccessCriterion): string {
         {{ generating ? "Generating..." : "Generate test cases" }}
       </button>
       <span class="muted">Simulated runs are LLM-vs-LLM. Real-call runs score a transcript you paste in.</span>
+      <span v-if="runCases.length > 0" class="spacer" />
+      <Badge
+        v-if="runCases.length > 0"
+        :label="`${passingCases.length}/${runCases.length} passing`"
+        :tone="passingCases.length === runCases.length ? 'good' : 'warning'"
+      />
     </div>
 
     <div v-if="testCases.length === 0" class="card muted">
       No test cases yet -- generate some, ideally after analyzing a few calls so they target real issues.
     </div>
 
-    <div v-for="tc in testCases" :key="tc.id" class="card test-case">
+    <div v-for="tc in testCases" :key="tc.id" class="card test-case" :class="statusTone(tc)">
       <div class="tc-header">
-        <Badge :label="tc.scenarioType === 'happy_path' ? 'happy path' : 'edge case'"
-               :tone="tc.scenarioType === 'happy_path' ? 'good' : 'warning'" />
+        <Badge :label="tc.scenarioType === 'happy_path' ? 'happy path' : 'edge case'" tone="neutral" />
+        <Badge
+          v-for="cat in tc.sourceCategories"
+          :key="cat"
+          :label="formatCategory(cat)"
+          tone="neutral"
+        />
         <h4>{{ tc.title }}</h4>
       </div>
       <p class="secondary persona">{{ tc.personaPrompt }}</p>
@@ -109,6 +132,17 @@ function describeCriterion(c: SuccessCriterion): string {
         <strong :style="{ color: tc.runs[0].passed ? 'var(--status-good)' : 'var(--status-critical)' }">
           {{ tc.runs[0].passed ? "PASSED" : "FAILED" }}
         </strong>
+      </div>
+
+      <div v-if="tc.runs.length > 1" class="run-history">
+        <span class="muted history-label">History (oldest → newest):</span>
+        <span
+          v-for="run in [...tc.runs].reverse()"
+          :key="run.id"
+          class="history-dot"
+          :class="run.passed ? 'good' : 'critical'"
+          :title="`${run.mode}, ${new Date(run.runAt).toLocaleString()} -- ${run.passed ? 'passed' : 'failed'}`"
+        />
       </div>
 
       <div class="actions">
@@ -150,16 +184,30 @@ function describeCriterion(c: SuccessCriterion): string {
   gap: var(--space-3);
 }
 
+.spacer {
+  flex: 1;
+}
+
 .test-case {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  border-left: 3px solid transparent;
+}
+
+.test-case.good {
+  border-left-color: var(--status-good);
+}
+
+.test-case.critical {
+  border-left-color: var(--status-critical);
 }
 
 .tc-header {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 .tc-header h4 {
@@ -175,6 +223,33 @@ function describeCriterion(c: SuccessCriterion): string {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+}
+
+.run-history {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.history-label {
+  margin-right: 2px;
+}
+
+.history-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  cursor: default;
+}
+
+.history-dot.good {
+  background: var(--status-good);
+}
+
+.history-dot.critical {
+  background: var(--status-critical);
 }
 
 .criterion {

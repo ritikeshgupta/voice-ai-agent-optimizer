@@ -378,6 +378,26 @@ rather than a claim:
   `listRecommendationsForAgent`'s query (`src/db/recommendations.ts`) -- a one-line fix, but the
   kind of thing that only surfaces by actually looking at the running product, not just reading
   the code.
+- **`npm run build`'s UI copy step was silently serving stale frontend builds locally**: the
+  script ran `cp -r src/ui/dist dist/ui/dist`, which only overwrites correctly on the *first*
+  build -- once `dist/ui/dist` already exists as a directory, `cp -r` nests the source *into* it
+  (`dist/ui/dist/dist/...`) instead of replacing its contents, so every rebuild after the first
+  kept serving the previous build. Never affected Render (its builds always start from a fresh
+  clone with no prior `dist/`), but it meant several rounds of local UI verification during this
+  session were checking stale output without any error to signal it -- caught by comparing a
+  screenshot against the actual code change and noticing nothing had visibly changed. Fixed by
+  clearing the destination first (`rm -rf dist/ui && mkdir -p dist/ui && cp -r ...`).
+- **Test Cases tab had no at-a-glance status signal and reused status colors for test *type*, not
+  test *outcome***: the "edge case" badge used the "warning" (orange) status tone even when that
+  case passed, which reads as a mixed signal right next to a green "PASSED." Separated the two:
+  scenario-type and source-category badges are now neutral (identity, not status), while a
+  colored left border on each card and a new toolbar "`X/Y passing`" summary carry the actual
+  pass/fail signal. Also surfaced two things the data already had but the UI didn't show: which
+  recurring issue category motivated each test case (`sourceCategories`, resolved server-side from
+  `sourceIssueIds`), and a compact run-history dot strip from the full `runs` array (previously
+  only `runs[0]` was ever rendered) -- which immediately revealed two test cases that have never
+  once passed despite 3-4 attempts each, a real signal that was already in the database and just
+  wasn't visible anywhere.
 
 ## What's functional vs. what's mocked
 

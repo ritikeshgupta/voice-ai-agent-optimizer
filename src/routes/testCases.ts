@@ -4,6 +4,7 @@ import { generateTestCases } from "../modules/testgen";
 import { recordRealCallTest, runSimulatedTest } from "../modules/simulate";
 import { listTestCasesForAgent } from "../db/testCases";
 import { listTestRunsForCase } from "../db/testRuns";
+import { listIssuesForAgent } from "../db/issues";
 
 /** Mounted at /api/agents/:agentId/test-cases */
 export const testCasesRouter = Router({ mergeParams: true });
@@ -21,7 +22,14 @@ testCasesRouter.get(
   "/",
   asyncHandler(async (req, res) => {
     const cases = listTestCasesForAgent(req.params.agentId);
-    res.json(cases.map((tc) => ({ ...tc, runs: listTestRunsForCase(tc.id) })));
+    const categoryById = new Map(listIssuesForAgent(req.params.agentId).map((i) => [i.id, i.category]));
+    res.json(
+      cases.map((tc) => ({
+        ...tc,
+        runs: listTestRunsForCase(tc.id),
+        sourceCategories: [...new Set(tc.sourceIssueIds.map((id) => categoryById.get(id)).filter(Boolean))],
+      }))
+    );
   })
 );
 
