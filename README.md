@@ -441,5 +441,5 @@ GET    /api/agents/:id/test-cases                POST /api/agents/:id/test-cases
 POST   /api/test-cases/:id/run                   POST /api/test-cases/:id/record-real-call
 
 GET    /api/agents/:id/recommendations           POST /api/agents/:id/recommendations/generate
-POST   /api/recommendations/:id/apply
+POST   /api/recommendations/:id/apply            POST /api/recommendations/:id/dismiss
 ```
