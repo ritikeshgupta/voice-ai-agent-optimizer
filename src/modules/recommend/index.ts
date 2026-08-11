@@ -22,7 +22,8 @@ const PROMPT_PATCHABLE = new Set(["prompt", "guardrails"]);
 
 const SYSTEM_PROMPT = `You are optimizing a HighLevel Voice AI phone agent. You'll be given the
 agent's current prompt, its recurring issue history, and failed test case results. Recommend
-concrete, prioritized changes -- do not pad the list with vague or unsupported suggestions.
+concrete, prioritized changes across six categories: prompt, actions, knowledge_base, guardrails,
+model, temperature. Do not pad the list with vague or unsupported suggestions.
 
 For "prompt" and "guardrails" categories, afterValue must be the FULL replacement agent prompt
 text (not a diff, not a snippet) -- it will be written back as the new prompt verbatim. Preserve
@@ -33,9 +34,19 @@ describe the proposed change clearly in plain language. Note: HighLevel's public
 no "model" or "temperature" field today, so those two categories are inherently advisory --
 recommend them anyway when justified, but don't claim they can be applied automatically.
 
-Every recommendation must cite specific evidence -- a recurring issue category, a failed test
-case, or both. If there isn't enough evidence to justify a change, return fewer recommendations
-rather than inventing ones.`;
+Judge each category on its own evidence, not on relative occurrence counts. A category with one
+well-evidenced, clearly-actionable issue deserves its own recommendation just as much as a
+category with five -- occurrence count is a signal for priority/severity within the list, not a
+gate on whether a category gets addressed at all. Concretely: if a recurring issue shows a caller
+invoking a policy the agent has no way to honor (e.g. asking for a transfer/escalation the agent
+can't perform), that alone justifies BOTH a "guardrails" recommendation (the rule: when to
+transfer/escalate) AND a separate "actions" recommendation (the capability: configure the actual
+transfer/tool action the guardrail would invoke) -- these are two different fixes for the same
+root cause, not duplicates. Only skip a category when there is truly no supporting evidence for it
+at all; never invent evidence to fill a category that has none.
+
+Every recommendation must still cite specific evidence -- a recurring issue category, a failed
+test case, or both.`;
 
 /**
  * Renders aggregate counts *plus* a handful of real examples (explanation + verbatim quote) per

@@ -308,14 +308,24 @@ rather than a claim:
   `RetryInfo.retryDelay` telling you exactly how long the throttle lasts -- that's parsed out and
   treated as "wait and retry," reserving the hard-stop for a 429 with no such hint (real
   exhaustion). Confirmed by re-running the full 8-test-case batch clean afterward.
-- **`recommend` consistently declined to surface an `actions`/escalation recommendation** for a
-  real, well-evidenced issue (a caller invoking a stated policy to be transferred, ignored) across
-  two independent runs -- checked directly that the evidence (issue + verbatim quote) was actually
-  present and being passed in, so this isn't a data gap. It's the model weighing a single
-  occurrence against `policy_violation`'s four and choosing not to raise a fourth recommendation
-  from thin evidence, per the system prompt's own instruction ("return fewer recommendations
-  rather than inventing ones"). Left as-is rather than forced -- that caution is the behavior the
-  prompt asked for, not a bug to route around.
+- **`recommend` consistently declined to surface an `actions`/`guardrails` recommendation** for a
+  real, well-evidenced issue (a caller invoking a stated escalation policy to be transferred,
+  ignored) across several runs, while `policy_violation` (5 occurrences) always got a
+  recommendation. Checked directly that the evidence (issue + verbatim quote) was actually present
+  and being passed in, so this wasn't a data gap -- it was the model treating occurrence count as
+  a gate on whether a category got addressed at all, not just a priority signal, so a single real
+  issue never cleared the bar next to a category with five. Initially left as-is (that reads as
+  legitimate caution against inventing evidence, not a bug), but revisited once it was clear the
+  assignment explicitly expects tool/action and guardrail/escalation recommendations to actually
+  show up, not just be theoretically supported by the schema. Fixed by rewording the system
+  prompt to separate two different judgments that had been collapsed into one: whether a category
+  has *any* real supporting evidence (the actual bar -- zero evidence still means zero
+  recommendation) versus how *much* evidence it has (a priority/severity signal, not a threshold).
+  Also named the specific pattern explicitly: a caller invoking an escalation policy the agent
+  can't honor is both a missing rule (`guardrails`: when to transfer) and a missing capability
+  (`actions`: the transfer tool to configure) -- two distinct fixes for one root cause, not
+  duplicates. Re-running now reliably produces all six categories from the same underlying issue
+  history, each still citing its own specific evidence.
 - **Boot-time self-heal, once a real deploy target came up -- and a live re-seed turned out to be
   the wrong version of that fix**: a laptop + ngrok URL isn't something a reviewer can rely on
   being reachable whenever they check it, so the app needed a host that stays up independent of

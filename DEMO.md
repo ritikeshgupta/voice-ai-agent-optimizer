@@ -58,15 +58,23 @@ Switch to **Test Cases** — point at one passed and one failed case, showing th
 success criteria (not prose) and the per-criterion pass/fail. Mention: most runs are simulated
 LLM-vs-LLM calls, labeled as such, sharing the same judge as any real-call test run would.
 
-## 1:45–2:30 — Insight (AI-generated recommendations)
+## 1:45–2:30 — Insight (AI-generated recommendations, all six categories)
 
 Switch to **Recommendations** and regenerate them live (this now has one more real data point to
-draw on than before).
+draw on than before). Point out that this spans all six categories the assignment asks for —
+prompt, actions, knowledge base, guardrails, model, temperature — each grounded in a distinct
+piece of real evidence, not padding.
 
 - Open the **knowledge_base** recommendation. Read the reasoning — it cites the actual
   pricing/hours deferral pattern, now including the real call you just placed. Point out the
   **disabled Apply button** with its label explaining why: HighLevel's public API has no lever to
   attach a KB, so this stays advisory, honestly.
+- Open the **guardrails** and **actions** pair together — both trace back to the same evidence (a
+  caller invoking the account's real escalation policy, asking to be transferred, and the agent
+  having no way to honor it): guardrails proposes the *rule* ("transfer when a caller invokes
+  escalation"), actions proposes the *capability* ("configure the transfer action the rule would
+  invoke"). Naming both from one root cause is the point — a rule with nothing to invoke, or a
+  tool with no rule triggering it, is only half a fix.
 - Briefly: this is AI-generated from real evidence (explanation + verbatim quotes per issue), not
   a canned suggestion.
 
