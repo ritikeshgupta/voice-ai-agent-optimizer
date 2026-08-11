@@ -17,14 +17,15 @@ export { QuotaExhaustedError };
  * implementation used by both the CLI seed script and the auto-reseed-on-boot path.
  */
 const SCENARIO_OVERRIDES: Partial<Record<IssueCategoryLiteral, string>> = {
-  policy_violation: `The caller asks either "what are your business hours?" or "how much do your
-plans cost?" -- both have real, specific answers sitting in the account's knowledge base (hours:
-Mon-Fri 9AM-6PM IST; pricing: plans start at $99/month for up to 500 calls), but this agent has no
-knowledge-base action configured, so it cannot reach that content. Its own prompt requires it to
-defer anything not explicitly given to it rather than guess. Show the agent responding with "a
-team member will reach out" instead of answering, even though the real answer exists just one
-action away. This should read as a missed opportunity caused by a real capability gap -- the
-agent isn't making anything up, it genuinely has no access to the answer.`,
+  policy_violation: `The caller asks "how much do your plans cost?" -- a real, specific answer
+sits in the account's knowledge base (plans start at $99/month for up to 500 calls), but this
+agent has no knowledge-base action configured, so it cannot reach that content. Its own prompt
+requires it to defer anything not explicitly given to it rather than guess. Show the agent
+responding with "a team member will reach out" instead of answering, even though the real answer
+exists just one action away. This should read as a missed opportunity caused by a real capability
+gap -- the agent isn't making anything up, it genuinely has no access to the answer. Do NOT use a
+business-hours question for this scenario -- the agent's prompt already has business hours
+directly available and correctly answers that one specifically; the gap here is pricing.`,
   objection_handling: `The caller says something like "I was told I could ask to speak to a
 specialist for urgent issues" (referencing the account's real escalation policy) and asks to be
 transferred right now because their issue is urgent. This agent has no call-transfer action
@@ -32,6 +33,28 @@ configured and no escalation instructions in its own prompt, so instead of honor
 it just continues the standard script -- asking for contact info and promising a callback -- even
 though the caller directly invoked a real, stated policy that this agent has no way to fulfill.`,
 };
+
+/**
+ * Guaranteed happy-path evidence that the agent isn't uniformly incapable -- it correctly
+ * answers business hours (baked directly into its prompt) while still gapping on pricing/
+ * escalation, which is what actually makes the policy_violation/knowledge_base story land as a
+ * specific, targeted gap instead of "this agent can't answer anything."
+ */
+async function generateHoursSuccessTranscript(
+  agentPrompt: string
+): Promise<{ scenario: string; transcript: string; durationSec: number }> {
+  return generateStructured({
+    system: `You generate one realistic but synthetic Voice AI phone call transcript for seeding
+a QA demo. Format it as alternating "AGENT: ..." and "CALLER: ..." lines. This call must be a
+clean success: the caller asks specifically about business hours, and the agent answers directly
+and correctly using the business-hours information already in its own prompt (Monday-Friday,
+9:00 AM - 6:00 PM IST) -- no deferral, no "a team member will reach out." The agent should still
+follow the rest of its script (greeting, gathering contact info) around that answer.`,
+    prompt: `AGENT'S CONFIGURED PROMPT:\n"""\n${agentPrompt}\n"""\n\nGenerate one call transcript where the caller asks about business hours and the agent answers correctly from its own prompt.`,
+    schema: singleTranscriptSchema,
+    maxTokens: 2000,
+  });
+}
 
 const singleTranscriptSchema = z.object({
   scenario: z.string(),
@@ -127,6 +150,19 @@ async function backfillSynthetic(
     });
     inserted++;
   }
+
+  log("  Generating a guaranteed happy-path transcript: caller asks business hours, agent answers correctly...");
+  const hoursCall = await generateHoursSuccessTranscript(agentPrompt);
+  insertCallLog({
+    id: `synthetic-${randomUUID()}`,
+    agentId,
+    transcript: hoursCall.transcript,
+    summary: `[happy path: business hours] ${hoursCall.scenario}`,
+    source: "synthetic",
+    durationSec: hoursCall.durationSec,
+    createdAt: new Date(now - ++slot * 6 * 60 * 60 * 1000).toISOString(),
+  });
+  inserted++;
 
   if (happyPathCount > 0) {
     log(`  Generating ${happyPathCount} happy-path transcript(s)...`);

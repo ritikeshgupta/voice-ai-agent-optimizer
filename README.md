@@ -87,6 +87,13 @@ the API can read and patch it, but agent *creation* is a one-time manual step he
 scripted, since it only needs to happen once and doing it in the real UI is the most direct way
 to get a realistic starting prompt.
 
+Deliberately give the agent partial capability, not zero: bake one obvious fact (e.g. business
+hours) directly into the prompt text so it answers that correctly, while leaving other things
+(pricing, escalation) unaddressed. A gap that's targeted and specific ("this agent can't quote a
+price, though it clearly knows its own hours") is a more useful, more credible demo than "this
+agent can't answer anything" — and it's what makes the eventual `knowledge_base`/`guardrails`
+recommendations read as precise fixes instead of generic advice for a broken agent.
+
 ### 2. Populate a Knowledge Base
 
 In the sandbox: **AI Agents → Knowledge Base → Create knowledge base**, and add the FAQ entries
@@ -99,9 +106,11 @@ category land on a specific, verifiable gap ("the answer exists, the agent just 
 instead of generic advice.
 
 `scripts/seed.ts`'s `SCENARIO_OVERRIDES` hardcodes two synthetic transcripts against this specific
-setup — one caller asking about hours/pricing, one invoking the escalation policy by name. If you
-populate different FAQ topics, update those two scenario descriptions to match, or the seeded
-"gap" transcripts won't correspond to anything actually in your KB.
+setup — one caller asking about pricing (a real KB-only gap), one invoking the escalation policy
+by name — plus a separate guaranteed happy-path transcript where a caller asks about business
+hours and the agent answers correctly from its own prompt. If you populate different FAQ topics or
+change what's baked into the prompt, update those scenario descriptions to match, or the seeded
+transcripts won't correspond to anything actually in your setup.
 
 ### 3. Create a Private Integration Token
 
@@ -321,6 +330,15 @@ rather than a claim:
   fail, a new "`X/Y passing`" summary), and added a run-history dot strip from data that was
   already fetched but never rendered beyond the latest run — which immediately revealed two test
   cases that have never once passed.
+- **The demo agent originally had zero capability beyond contact collection**, so it deferred on
+  *every* question uniformly — a real but unconvincing demo, since "this agent can't answer
+  anything" reads as broken rather than as a specific, fixable gap. Patched the real agent's
+  prompt to answer business hours directly (baked into the prompt) while leaving pricing and
+  escalation as genuine KB-only gaps, and split the synthetic backfill accordingly: a guaranteed
+  happy-path transcript proving the agent isn't uniformly incapable, plus a pricing-specific
+  (not hours) `policy_violation` scenario. Makes the eventual `knowledge_base`/`guardrails`
+  recommendations read as targeted fixes for one missing capability, not generic advice for a
+  broken agent.
 
 ## What's functional vs. what's mocked
 
@@ -347,6 +365,13 @@ rather than a claim:
   recommendations (the assignment asks for the category) but the UI disables Apply and says why.
 - **`actions`/`knowledge_base` recommendations are generated but not yet wired to an apply path**
   (see Team-of-One notes) — real API contract exists, apply handler doesn't yet.
+- **The Optimizer never actually reads the real Knowledge Base's contents.** There's no API call
+  anywhere in this codebase to HighLevel's KB endpoints — `knowledge_base` recommendations are
+  inferred purely from the *pattern* in transcripts (the agent repeatedly deferring on things that
+  sound like routine business questions), not from confirming what's actually in the account's KB.
+  The reasoning happens to be correct in this demo because the KB really does contain those
+  answers (see `KNOWLEDGE_BASE.md`), but that's the demo setup being honest, not the system
+  verifying it live.
 - Tone/pacing/interruption-handling signals are inferred from transcript **text only** — the Call
   Log API has no recording-URL field, so there's no audio to analyze even if the UI shows a
   playback control for humans.

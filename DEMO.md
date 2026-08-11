@@ -28,11 +28,17 @@ Open the **Call Logs & Issues** tab.
 
 ## 0:45–1:30 — Workflow: place a real call, on camera
 
-Switch to the agent's **Test Audio** panel and click **Start Web Call**. Ask the agent something
-like *"Hi, what are your business hours?"* or *"How much do your plans cost?"*. This targets a
-real, known gap: the account's knowledge base has both answers, but this agent has no
-knowledge-base action wired up, so it'll defer instead of answering — watch it happen live. End
-the call once the agent asks for a callback instead of answering.
+Switch to the agent's **Test Audio** panel and click **Start Web Call**. Ask two things in the
+same call, in order:
+
+1. *"Hi, what are your business hours?"* — the agent answers this **correctly**, live (it's baked
+   directly into the prompt). Point this out explicitly: "so it's not that this agent can't
+   answer anything."
+2. *"How much do your plans cost?"* — the agent **defers** instead of answering, even though the
+   real answer exists in the account's knowledge base, because no KB action is wired up. This is
+   the targeted, specific gap — not a broken agent, one missing capability.
+
+End the call once the agent asks for a callback instead of answering the pricing question.
 
 ## 1:30–2:15 — Workflow: sync and analyze that call
 
@@ -42,9 +48,10 @@ Switch back to the Optimizer's **Call Logs & Issues** tab.
   tagged `real`.
 - Click **Analyze unprocessed calls** live — this only processes the new real call (everything
   else was already analyzed). Point at the updated count (one more call, one more issue) against
-  the baseline from a minute ago. Expand the new issue and read the explanation out loud: the agent
-  followed its prompt correctly by deferring, but this highlights a gap in the agent's
-  configuration — no knowledge-base access to answer a routine question it could have answered
+  the baseline from a minute ago — one issue, not two, since the analyzer correctly recognized the
+  hours answer as fine and only flagged the pricing deferral. Expand the new issue and read the
+  explanation out loud: the agent followed its prompt correctly by deferring the pricing question,
+  but this highlights a gap in the agent's configuration — no knowledge-base access to answer it
   correctly. This is the beat that shows the analyzer catches missed opportunities on genuinely
   fresh evidence, not just canned synthetic examples.
 

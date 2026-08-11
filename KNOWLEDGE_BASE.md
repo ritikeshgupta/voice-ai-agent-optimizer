@@ -7,6 +7,11 @@ transcripts (see `scripts/seed.ts`'s `SCENARIO_OVERRIDES`) land on a real, verif
 answers genuinely exist in the account, the agent just has no knowledge-base action wired up to
 reach them. Copy these verbatim into a fresh sandbox to reproduce the same demo.
 
+Note: the business-hours entry below deliberately overlaps with information also baked directly
+into the agent's own prompt (see README step 1) — a realistic setup for a business that hardcoded
+one obvious fact before ever wiring up the KB. Pricing, escalation, and everything else stay
+genuine, KB-only gaps.
+
 ---
 
 **Q: What are your business hours?**
